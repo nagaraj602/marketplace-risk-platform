@@ -111,7 +111,7 @@ If you wish to run each microservice directly on your host:
 
 #### Step 1: Start PostgreSQL and Redis
 ```bash
-docker run -d --name risk-postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgrespassword postgres:16-alpine
+docker run -d --name risk-postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgrespassword postgres:17-alpine
 docker run -d --name risk-redis -p 6379:6379 redis:7.4-alpine
 
 # Initialize PostgreSQL Schema
