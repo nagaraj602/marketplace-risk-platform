@@ -1,0 +1,13 @@
+project_name       = "marketplace-risk"
+region             = "ap-south-1"
+vpc_cidr           = "10.0.0.0/16"
+kubernetes_version = "1.32"
+node_instance_type = "t3.medium"
+db_name            = "marketplace_risk"
+
+tags = {
+  Project     = "Marketplace-Risk-Platform"
+  ManagedBy   = "Terraform"
+  Environment = "production"
+  Owner       = "Nagaraj"
+}
