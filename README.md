@@ -283,10 +283,10 @@ docker compose ps
 ```
 
 4. Service Endpoints:
-- **Trust & Safety Portal**: [http://localhost:3000](http://localhost:3000)
-- **Risk Backend API**: [http://localhost:8080](http://localhost:8080)
-- **Actuator Health**: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
-- **ML Anomaly Model API & Swagger Docs**: [http://localhost:5000/docs](http://localhost:5000/docs)
+- **Trust & Safety Portal**: [http://localhost:8280](http://localhost:8280)
+- **Risk Backend API**: [http://localhost:8281](http://localhost:8281)
+- **Actuator Health**: [http://localhost:8281/actuator/health](http://localhost:8281/actuator/health)
+- **ML Anomaly Model API & Swagger Docs**: [http://localhost:8282/docs](http://localhost:8282/docs)
 - **PostgreSQL Database**: `localhost:5432` (`marketplace_risk`)
 - **Redis Cache**: `localhost:6379`
 
@@ -315,7 +315,7 @@ pip install -r requirements.txt
 # Run unit tests
 python3 -m unittest discover tests
 
-# Start API server on port 5000
+# Start API server on port 8282
 python3 app.py
 ```
 
@@ -325,7 +325,7 @@ cd marketplace-risk-backend
 # Run unit & integration tests
 mvn clean test
 
-# Start service on port 8080
+# Start service on port 8281
 mvn spring-boot:run
 ```
 
@@ -335,7 +335,7 @@ cd marketplace-risk-frontend
 npm install
 npm run build
 node server.js
-# Or start interactive Vite dev server:
+# Or start interactive Vite dev server (port 8280):
 npm run dev
 ```
 
@@ -377,7 +377,7 @@ helm upgrade --install marketplace-risk-frontend ../marketplace-risk-frontend/he
 ## 🎮 How to Use & Operate This App
 
 ### 1. Navigating the Trust & Safety Console
-Open your web browser at **[http://localhost:3000](http://localhost:3000)**.
+Open your web browser at **[http://localhost:8280](http://localhost:8280)**.
 - **Top Telemetry Bar**: Live indicators for Pending Queue Depth, Automated Takedowns, False Positive Rate (target <5%), and Pipeline Latency (SLO <10 min).
 - **Prioritized Case Queue**: Displays incoming high-risk seller cases ordered by severity with SLA deadlines.
 - **Signal Simulator**: Interactive tool to inject simulated abuse traffic into the system.
@@ -411,7 +411,7 @@ In the Case Queue table:
 
 #### Ingest Signal via Backend API
 ```bash
-curl -X POST http://localhost:8080/api/v1/risk/evaluate \
+curl -X POST http://localhost:8281/api/v1/risk/evaluate \
   -H "Content-Type: application/json" \
   -d '{
     "sellerId": "seller_demo_01",
@@ -427,7 +427,7 @@ curl -X POST http://localhost:8080/api/v1/risk/evaluate \
 
 #### Test Python Anomaly Model Standalone
 ```bash
-curl -X POST http://localhost:5000/score \
+curl -X POST http://localhost:8282/score \
   -H "Content-Type: application/json" \
   -d '{
     "seller_id": "seller_demo_01",
@@ -444,10 +444,10 @@ curl -X POST http://localhost:5000/score \
 Simulate ML service downtime to verify resilient fallback:
 ```bash
 # Toggle model to unhealthy state
-curl -X POST http://localhost:5000/admin/toggle-health
+curl -X POST http://localhost:8282/admin/toggle-health
 
 # Trigger evaluation on backend - Observe fallback profiler activate seamlessly!
-curl -X POST http://localhost:8080/api/v1/risk/evaluate ...
+curl -X POST http://localhost:8281/api/v1/risk/evaluate ...
 ```
 
 ---
