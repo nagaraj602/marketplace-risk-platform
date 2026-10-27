@@ -58,14 +58,201 @@ The complete microservices suite, infrastructure, and CI/CD pipelines are mainta
 
 ## ⚙️ Prerequisites & System Requirements
 
-Ensure the following tools are installed on your workstation:
-- **Docker & Docker Compose** (Docker 24+ / Compose v2)
-- **Java Development Kit (JDK 21)** (OpenJDK or Eclipse Temurin)
-- **Apache Maven 3.9+**
-- **Python 3.15.2+**
-- **Node.js 24 LTS+** & **npm**
-- **AWS CLI v2** & **Terraform 1.5+** (for AWS deployments)
-- **kubectl** & **Helm 3.x**
+Before attempting to set up and run the platform, verify that your development workstation meets the prerequisites below. The specific tools and credentials required depend on your chosen setup method.
+
+### 📋 Prerequisites Matrix by Setup Method
+
+| Requirement / Tool | Method 1: Docker Compose (Recommended) | Method 2: Manual Local Build (From Source) | Method 3: Cloud AWS Production (Terraform + EKS) | Minimum Required Version |
+| :--- | :---: | :---: | :---: | :--- |
+| **Git** | ✅ Required | ✅ Required | ✅ Required | `git 2.40+` |
+| **Docker Engine & Daemon** | ✅ Required | ⚡ Optional (for DBs) | ✅ Required (image builds) | `Docker 24.0+` |
+| **Docker Compose** | ✅ Required | ❌ Not Needed | ❌ Not Needed | `Compose v2.20+` |
+| **AWS CLI v2** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `aws-cli 2.15+` |
+| **AWS IAM Credentials / Keys** | ❌ Not Needed | ❌ Not Needed | ✅ Required | Access Key, Secret Key, Region |
+| **Terraform CLI** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `Terraform 1.5+` (v1.17+ tested) |
+| **kubectl** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `v1.35 - v1.37` (EKS 1.37 match) |
+| **Helm** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `Helm v3.12+` or `v4` |
+| **Java JDK** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `OpenJDK 21` / `Temurin 21 LTS` |
+| **Apache Maven** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `Maven 3.9+` |
+| **Python & venv** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `Python 3.15.2+` |
+| **Node.js & npm** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `Node 24 LTS` & `npm 10+` |
+| **PostgreSQL Client (`psql`)** | ❌ Not Needed (automated) | ✅ Required | ❌ Not Needed | `PostgreSQL 17.x` |
+
+---
+
+### 1. Hardware & System Sizing
+
+- **Operating System**: Linux (Ubuntu 22.04 / 24.04 recommended), macOS (Apple Silicon or Intel), or Windows 10/11 with WSL2 (Ubuntu).
+- **CPU**: 4 physical or virtual cores minimum.
+- **Memory (RAM)**:
+  - **Method 1 (Docker Compose)**: 8 GB minimum; 16 GB recommended to smoothly run Spring Boot, FastAPI, Vite/Express, Redis, and PostgreSQL concurrently.
+  - **Method 2 (Local Development)**: 8 GB minimum.
+  - **Method 3 (Cloud Deployments)**: 4 GB local workstation RAM (workloads execute on AWS EKS EC2 worker nodes).
+- **Disk Storage**: At least 25 GB of free disk space (for Docker layer caches, Maven `.m2` repository, Python wheels, `node_modules`, and Terraform provider plugins).
+- **Network**: Outbound access to Docker Hub, Maven Central, PyPI, npm registry, and AWS API endpoints.
+
+---
+
+### 2. Containerization Engine (Required for Method 1 & Local Testing)
+
+Docker provides isolated container runtimes for all microservices, databases, and caches.
+
+- **Installation**:
+  - **Linux**: Install [Docker Engine](https://docs.docker.com/engine/install/) and the `docker-compose-plugin`.
+  - **macOS / Windows**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and ensure Docker Desktop has at least 8 GB RAM and 4 CPUs allocated under *Settings > Resources*.
+- **Verification Commands**:
+  ```bash
+  # Check Docker daemon and client
+  docker --version
+  # Expected: Docker version 24.0.0+ (or 26/27+)
+
+  # Check Docker Compose v2
+  docker compose version
+  # Expected: Docker Compose version v2.20.0+
+
+  # Verify Docker daemon is actively running
+  docker info
+  ```
+
+---
+
+### 3. AWS CLI & IAM Credentials (Required for Method 3: Cloud AWS Production)
+
+Deploying the infrastructure using Terraform and managing the Amazon EKS cluster requires authenticated AWS API access with adequate IAM permissions.
+
+#### A. AWS CLI v2 Installation
+Install the official AWS CLI v2 following the [AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+```bash
+aws --version
+# Expected: aws-cli/2.15.0+ Python/3.11+
+```
+
+#### B. Required AWS IAM Credentials
+You must possess an active AWS IAM user or assumed role credentials containing:
+1. **AWS Access Key ID**: e.g., `AKIAIOSFODNN7EXAMPLE`
+2. **AWS Secret Access Key**: e.g., `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
+3. **AWS Default Region**: e.g., `ap-south-1` (Mumbai), `us-east-1` (N. Virginia), or `us-west-2` (Oregon)
+4. *(Optional)* **AWS Session Token**: Required if you are authenticating via AWS SSO, AWS Organizations Identity Center, or AWS STS assumed role sessions.
+
+#### C. Configuring AWS Credentials
+Configure your credentials locally via the interactive CLI or environment variables:
+
+**Option 1: Interactive Configuration (Stored in `~/.aws/credentials`)**
+```bash
+aws configure
+# AWS Access Key ID [None]: AKIA...
+# AWS Secret Access Key [None]: wJalrX...
+# Default region name [None]: ap-south-1
+# Default output format [None]: json
+```
+
+**Option 2: Environment Variables (Ideal for CI/CD and Temporary Sessions)**
+```bash
+export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export AWS_DEFAULT_REGION="ap-south-1"
+# If using temporary STS credentials:
+export AWS_SESSION_TOKEN="AQoDYXdzEJr1..."
+```
+
+#### D. Verifying Active AWS Identity
+Verify that your credentials are valid and active before running Terraform:
+```bash
+aws sts get-caller-identity
+```
+*Expected Output:*
+```json
+{
+    "UserId": "AIDAS6OQ...",
+    "Account": "123456789012",
+    "Arn": "arn:aws:iam::123456789012:user/platform-deployer"
+}
+```
+
+#### E. Mandatory AWS IAM Permissions & Policies
+The provisioning IAM user or role must have policies granting permission to create and manage the following AWS services:
+- **Amazon EKS**: `AmazonEKSClusterPolicy`, `AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy` (or `eks:*`)
+- **Amazon VPC & EC2**: `AmazonVPCFullAccess` (VPC, Subnets, Internet Gateways, NAT Gateways, Elastic IPs, Security Groups, Route Tables)
+- **Amazon RDS**: `AmazonRDSFullAccess` (PostgreSQL 17 DB instances, DB subnet groups, parameter groups)
+- **Amazon ElastiCache**: `AmazonElastiCacheFullAccess` (Redis 7.4 replication groups, cache subnet groups)
+- **Amazon ECR**: `AmazonEC2ContainerRegistryFullAccess` (Container repository creation and image pushes)
+- **AWS IAM**: `iam:CreateRole`, `iam:AttachRolePolicy`, `iam:PassRole`, `iam:CreateOpenIDConnectProvider`, `iam:CreateInstanceProfile`
+- **AWS KMS**: `AWSKeyManagementServicePowerUser` (KMS customer managed keys for EKS secrets envelope encryption)
+
+---
+
+### 4. Infrastructure as Code & Kubernetes Tooling (Required for Method 3)
+
+#### A. Terraform CLI
+- **Version**: Terraform `v1.5.0` or later (tested with Terraform `v1.17.0` and AWS Provider `~> 6.70.0`).
+- **Verification**:
+  ```bash
+  terraform --version
+  # Expected: Terraform v1.5.0+ (or v1.17+)
+  ```
+
+#### B. kubectl (Kubernetes Control CLI)
+- **Version**: `kubectl` v1.35+ (matches Amazon EKS cluster version `1.37`).
+- **Verification**:
+  ```bash
+  kubectl version --client --output=yaml
+  ```
+
+#### C. Helm (Kubernetes Package Manager)
+- **Version**: Helm `v3.12.0` or later (or `v4`).
+- **Verification**:
+  ```bash
+  helm version
+  # Expected: version.BuildInfo{Version:"v3.17.0", ...}
+  ```
+
+---
+
+### 5. Programming Language Runtimes & SDKs (Required for Method 2: Manual Local Build)
+
+If you plan to build and run the microservices directly on your host machine without Docker:
+
+#### A. Java 21 LTS & Maven 3.9+ (For Core Risk Backend)
+- **JDK**: Eclipse Temurin 21 or OpenJDK 21 LTS
+- **Build Tool**: Apache Maven 3.9+
+- **Verification**:
+  ```bash
+  java -version
+  # Expected: openjdk version "21.0.x"
+  javac -version
+  # Expected: javac 21.0.x
+  mvn -version
+  # Expected: Apache Maven 3.9.x
+  ```
+
+#### B. Python 3.15.2+ & Pip (For ML Anomaly Scoring Service)
+- **Python**: Python 3.15.2+ with `venv` module
+- **Verification**:
+  ```bash
+  python3 --version
+  # Expected: Python 3.15.2
+  python3 -m pip --version
+  # Expected: pip 24.x+
+  ```
+
+#### C. Node.js 24 LTS & npm 10+ (For Trust & Safety Console Frontend)
+- **Runtime**: Node.js 24 LTS (Active LTS)
+- **Package Manager**: npm 10+
+- **Verification**:
+  ```bash
+  node -v
+  # Expected: v24.x.x
+  npm -v
+  # Expected: 10.x.x
+  ```
+
+#### D. PostgreSQL Client (`psql`)
+- **Version**: PostgreSQL 17 client utilities for schema initialization
+- **Verification**:
+  ```bash
+  psql --version
+  # Expected: psql (PostgreSQL) 17.x
+  ```
 
 ---
 
