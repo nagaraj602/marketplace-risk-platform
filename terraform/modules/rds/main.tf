@@ -13,7 +13,7 @@ resource "aws_db_instance" "this" {
   max_allocated_storage = 200
   storage_type      = "gp3"
   engine            = "postgres"
-  engine_version    = "16.4"
+  engine_version    = "17.1"
   instance_class    = "db.t4g.medium"
 
   db_name  = var.db_name
