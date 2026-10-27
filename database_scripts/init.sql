@@ -84,6 +84,9 @@ CREATE INDEX IF NOT EXISTS idx_enforce_status ON enforcement_actions(status);
 -- Permissions
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO riskuser;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO riskuser;
+ALTER TABLE sellers OWNER TO riskuser;
+ALTER TABLE risk_cases OWNER TO riskuser;
+ALTER TABLE enforcement_actions OWNER TO riskuser;
 
 -- Production Seed Data
 INSERT INTO sellers (seller_id, seller_name, email, account_age_days, rating, status, registered_country) VALUES
@@ -147,6 +150,9 @@ CREATE TABLE IF NOT EXISTS enforcement_actions (
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO riskuser;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO riskuser;
+ALTER TABLE sellers OWNER TO riskuser;
+ALTER TABLE risk_cases OWNER TO riskuser;
+ALTER TABLE enforcement_actions OWNER TO riskuser;
 
 INSERT INTO sellers (seller_id, seller_name, email, account_age_days, rating, status, registered_country) VALUES
 ('dev_seller_01', 'Dev Test Store', 'test@dev.local', 15, 4.0, 'ACTIVE', 'US');
@@ -199,6 +205,9 @@ CREATE TABLE IF NOT EXISTS enforcement_actions (
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO riskuser;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO riskuser;
+ALTER TABLE sellers OWNER TO riskuser;
+ALTER TABLE risk_cases OWNER TO riskuser;
+ALTER TABLE enforcement_actions OWNER TO riskuser;
 
 \echo ''
 \echo '========================================================'
