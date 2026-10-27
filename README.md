@@ -452,20 +452,181 @@ curl -X POST http://localhost:8281/api/v1/risk/evaluate ...
 
 ---
 
-## 🛡️ CI/CD & Branching Strategy Guide
+## 🏗️ Jenkins CI/CD Setup & Multibranch Integration Guide
 
-Pipelines are orchestrated in Jenkins using the shared library in [nagaraj602/jenkins-sharedlibraries](https://github.com/nagaraj602/jenkins-sharedlibraries.git).
+The continuous integration and continuous deployment (CI/CD) pipelines for all microservices are automated using Jenkins Multibranch Pipelines, backed by reusable pipeline steps defined in [nagaraj602/jenkins-sharedlibraries](https://github.com/nagaraj602/jenkins-sharedlibraries.git).
 
-### 1. Pull Request CI Quality Gate (`Jenkinsfile.pr`)
-Every PR into `dev`, `staging`, or `master`:
-- **Git Checkout**: Authenticated checkout of feature branch.
-- **Unit & Integration Tests**: Hard fail on test failure (`mvn test` / `unittest` / `npm test`).
-- **SonarQube Analysis**: Static analysis gating with `waitForQualityGate` (blocks merge on code smells/bugs).
-- **Docker Build**: Local image build without remote push.
-- **Trivy Scans**: Gated on `CRITICAL` and `HIGH` vulnerabilities across the filesystem, Dockerfile configuration, and image layers.
+```
+┌─────────────────┐       Webhook       ┌──────────────────────────────┐
+│  GitHub Repos   │ ──────────────────> │   Jenkins Controller         │
+│  (PRs / Pushes) │                     │   (Multibranch Webhook Scan) │
+└─────────────────┘                     └──────────────┬───────────────┘
+                                                       │ Triggers Pipeline
+                                                       ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Jenkins Shared Library Pipeline                   │
+│                                                                      │
+│  [1. gitCheckout] ──> [2. Tests & SonarQube Gate] ──> [3. Docker]    │
+│                                                            │         │
+│  [6. Helm Deploy EKS] <── [5. AWS ECR Push] <── [4. Trivy Gate]      │
+└──────────────────────────────────────────────────────────────────────┘
+```
 
-### 2. CD Deployment Pipeline (`Jenkinsfile`)
-Runs on PR approval and merge:
-- **Merge to `dev`**: Builds image, pushes to Amazon ECR, auto-deploys via Helm to `dev` namespace for microservice isolation testing.
-- **Merge to `staging`**: Auto-deploys via Helm to `uat` namespace for end-to-end integration testing.
-- **Merge to `master`**: Halts at an interactive **Manual Confirmation Gate** before deploying to the `prod` namespace during scheduled release windows.
+### 1. Jenkins Controller & Worker Node Provisioning
+
+You can run Jenkins using either Terraform on AWS or via Docker locally:
+
+#### Option A: AWS EC2 via Terraform (Included in Platform IaC)
+The Terraform module at `marketplace-risk-platform/terraform/modules/jenkins` automatically provisions an EC2 `t3.large` instance on Ubuntu 24.04 LTS Noble inside your VPC public subnet with the required IAM instance profile.
+```bash
+cd marketplace-risk-platform/terraform
+terraform apply -target=module.jenkins
+```
+
+#### Option B: Standalone Docker Execution
+For local testing or on-premise setups:
+```bash
+docker run -d \
+  --name jenkins-controller \
+  -p 8080:8080 -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jenkins/jenkins:lts-jdk21
+```
+
+---
+
+### 2. Mandatory Jenkins Plugins Installation
+
+Navigate to **Manage Jenkins** > **Plugins** > **Available plugins**, search for and install:
+1. **Multibranch Scan Webhook Trigger** (`multibranch-scan-webhook-trigger`): Enables instant scan triggers on GitHub push/PR webhooks without polling.
+2. **Pipeline: Shared Groovy Libraries** (`workflow-cps-global-lib`): Enables centralized pipeline step reuse (`vars/`).
+3. **GitHub Branch Source** (`github-branch-source`): Discovers branches, PRs, and posts commit status checks back to GitHub.
+4. **SonarQube Scanner for Jenkins** (`sonar`): Static code quality and security gate enforcement.
+5. **Docker Pipeline** (`docker-workflow`): Multi-stage Docker image building and registry pushes.
+6. **AWS Credentials Plugin** (`aws-credentials`): Secure credential management for AWS ECR and EKS authentication.
+7. **Credentials Binding Plugin** (`credentials-binding`): Injects secrets securely into build stages.
+
+---
+
+### 3. Step-by-Step Shared Library Integration
+
+All service pipelines consume standardized steps (`gitCheckout`, `trivyScan`, `sonarAnalysis`, `dockerECRImagePush`, `kubernetesEKSHelmDeployEnv`) using the annotation `@Library('sharedlibrary')_`.
+
+1. In Jenkins, go to **Manage Jenkins** > **System** (or **Configure System**).
+2. Scroll to the **Global Pipeline Libraries** section.
+3. Click **Add**:
+   - **Name**: `sharedlibrary` *(Must exactly match `@Library('sharedlibrary')_` in Jenkinsfiles)*
+   - **Default version**: `main` (or `master`)
+   - **Load implicitly**: Unchecked
+   - **Allow default version to be overridden**: Checked
+   - **Include @Library changes in job recent changes**: Checked
+   - **Retrieval method**: Select **Modern SCM**
+   - **Source Code Management**: Select **Git**
+   - **Project Repository**: `https://github.com/nagaraj602/jenkins-sharedlibraries.git`
+   - **Credentials**: Select your GitHub credential (`githubCred`)
+4. Click **Save** at the bottom of the page.
+
+---
+
+### 4. Mandatory Credentials Configuration
+
+Navigate to **Manage Jenkins** > **Credentials** > **System** > **Global credentials (unrestricted)** and add the following 3 credentials:
+
+| Credential ID | Kind | Value / Secret | Used By |
+| :--- | :--- | :--- | :--- |
+| **`githubCred`** | Secret text or Username with password | GitHub Personal Access Token (PAT) with `repo`, `admin:repo_hook`, and `workflow` scopes | `gitCheckout`, branch discovery, and PR status updates |
+| **`awsCred`** | AWS Credentials | AWS Access Key ID + Secret Access Key with ECR and EKS permissions | `dockerECRImagePush` & `kubernetesEKSHelmDeployEnv` |
+| **`sonarToken`** | Secret text | SonarQube User / Project Analysis Token | `sonarAnalysis` in `Jenkinsfile.pr` |
+
+#### SonarQube Server Configuration in Jenkins:
+1. Go to **Manage Jenkins** > **System** > **SonarQube servers**.
+2. Click **Add SonarQube**:
+   - **Name**: `sonar-server` *(Must match the parameter in `Jenkinsfile.pr`)*
+   - **Server URL**: `http://<SONARQUBE_HOST>:9000`
+   - **Server authentication token**: Select `sonarToken`
+3. Click **Save**.
+
+---
+
+### 5. Multibranch Pipeline Project Setup
+
+Create a dedicated Multibranch Pipeline job for each microservice:
+1. `marketplace-risk-backend`
+2. `marketplace-risk-frontend`
+3. `marketplace-risk-anomaly-model`
+
+#### In Jenkins:
+1. Click **New Item** on the Jenkins dashboard.
+2. Enter the Item Name (e.g., `marketplace-risk-backend`).
+3. Select **Multibranch Pipeline** and click **OK**.
+4. Under **Branch Sources**, click **Add source** > **GitHub** (or **Git**):
+   - **Repository HTTPS URL**: `https://github.com/nagaraj602/marketplace-risk-backend.git`
+   - **Credentials**: Select `githubCred`
+   - **Behaviors**:
+     - *Discover branches*: Filter by name wildcards: `main master staging dev feature/*`
+     - *Discover pull requests from origin*: Strategy: `The current pull request revision`
+5. Under **Build Configuration**:
+   - **Mode**: `by Jenkinsfile`
+   - **Script Path**: `Jenkinsfile`
+6. Click **Save**.
+
+---
+
+### 6. Multibranch Webhook Plugin Configuration
+
+To trigger automatic scans and builds whenever developers push code or open PRs:
+
+1. Inside each Multibranch Pipeline job configuration:
+2. Scroll to the **Scan Multibranch Pipeline Triggers** section.
+3. Check the box: **Scan by webhook**.
+4. Enter a unique **Trigger token** for each project:
+   - For Backend: `marketplace-risk-backend-token`
+   - For Frontend: `marketplace-risk-frontend-token`
+   - For ML Model: `marketplace-risk-model-token`
+5. Note the invocation webhook URL format:
+   ```
+   http://<YOUR_JENKINS_HOST>:8080/multibranch-webhook-trigger/invoke?token=<TRIGGER_TOKEN>
+   ```
+6. Click **Save**.
+
+---
+
+### 7. GitHub Repository Webhook Setup
+
+Connect your GitHub repositories to your Jenkins controller:
+
+1. Open your GitHub repository in your browser:
+   - [marketplace-risk-backend Webhook Settings](https://github.com/nagaraj602/marketplace-risk-backend/settings/hooks)
+   - [marketplace-risk-frontend Webhook Settings](https://github.com/nagaraj602/marketplace-risk-frontend/settings/hooks)
+   - [marketplace-risk-anomaly-model Webhook Settings](https://github.com/nagaraj602/marketplace-risk-anomaly-model/settings/hooks)
+2. Click **Add webhook**.
+3. Configure the webhook parameters:
+   - **Payload URL**: `http://<YOUR_JENKINS_HOST>:8080/multibranch-webhook-trigger/invoke?token=marketplace-risk-backend-token`
+   - **Content type**: `application/json`
+   - **Which events would you like to trigger this webhook?**:
+     Select **Let me select individual events**:
+     - ✅ **Pushes**
+     - ✅ **Pull requests**
+   - **Active**: Checked (Enabled)
+4. Click **Add webhook**.
+5. GitHub will dispatch a ping payload; verify that a green checkmark (`HTTP 200 OK`) is returned.
+
+---
+
+### 8. End-to-End Pipeline Execution Lifecycle
+
+#### A. Pull Request CI Quality Gate (`Jenkinsfile.pr`)
+Every PR opened into `dev`, `staging`, or `master`:
+- **Git Checkout**: Authenticated checkout of feature branch via `gitCheckout()`.
+- **Unit & Integration Tests**: Automated tests on Java 25 LTS / Python 3.15.2 / Node 24 (`mvn clean test`, `unittest`, `npm test`).
+- **SonarQube Analysis**: Static analysis gating via `sonarAnalysis()` with `waitForQualityGate` (blocks merge on code smells, bugs, or low coverage).
+- **Docker Build**: Local image build via `dockerImageBuild()`.
+- **Trivy Vulnerability Scans**: Gated via `trivyScan()` on `CRITICAL` and `HIGH` vulnerabilities across the filesystem, Dockerfile configuration, and image layers.
+- **Status Reporting**: Reports pass/fail commit status check back to GitHub PR.
+
+#### B. CD Deployment Pipeline (`Jenkinsfile`)
+Runs on PR approval and merge to deployment branches:
+- **Merge to `dev`**: Builds production image, pushes to Amazon ECR (`dockerECRImagePush()`), auto-deploys via Helm (`kubernetesEKSHelmDeployEnv()`) to the `dev` namespace.
+- **Merge to `staging`**: Auto-deploys via Helm to the `uat` namespace for end-to-end integration testing.
+- **Merge to `master`**: Halts at an interactive **Manual Confirmation Gate** in Jenkins before deploying to the `prod` namespace during scheduled release windows.
