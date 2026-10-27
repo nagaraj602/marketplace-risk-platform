@@ -11,7 +11,7 @@ The complete microservices suite, infrastructure, and CI/CD pipelines are mainta
 | Repository | GitHub Link | Purpose & Tech Stack |
 | :--- | :--- | :--- |
 | **Platform & Infrastructure** | [nagaraj602/marketplace-risk-platform](https://github.com/nagaraj602/marketplace-risk-platform.git) | Terraform AWS IaC (VPC, EKS 1.37, RDS PostgreSQL 17, Redis 7.4, Jenkins), DB init scripts, Docker Compose |
-| **Core Risk Backend** | [nagaraj602/marketplace-risk-backend](https://github.com/nagaraj602/marketplace-risk-backend.git) | Java 21, Spring Boot 4.1.2, JPA, Velocity Rule Engine, Risk Aggregation, Enforcement Orchestration |
+| **Core Risk Backend** | [nagaraj602/marketplace-risk-backend](https://github.com/nagaraj602/marketplace-risk-backend.git) | Java 25 LTS, Spring Boot 4.1.2, JPA, Velocity Rule Engine, Risk Aggregation, Enforcement Orchestration |
 | **ML Anomaly Model** | [nagaraj602/marketplace-risk-anomaly-model](https://github.com/nagaraj602/marketplace-risk-anomaly-model.git) | Python 3.15.2, FastAPI 0.162, scikit-learn 1.9.1 Isolation Forest, behavioral anomaly inference |
 | **Trust & Safety Portal** | [nagaraj602/marketplace-risk-frontend](https://github.com/nagaraj602/marketplace-risk-frontend.git) | React 19, Vite 8, Node 24, Express 5, Lucide-React, live review queue & signal injection simulator |
 | **Jenkins Shared Libraries** | [nagaraj602/jenkins-sharedlibraries](https://github.com/nagaraj602/jenkins-sharedlibraries.git) | Reusable Groovy pipeline vars (`trivyScan`, `sonarAnalysis`, `dockerECRImagePush`, `kubernetesEKSHelmDeployEnv`) |
@@ -28,7 +28,7 @@ The complete microservices suite, infrastructure, and CI/CD pipelines are mainta
                             │ Kafka / REST
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│          Marketplace Risk Backend (Java 21)            │
+│          Marketplace Risk Backend (Java 25 LTS)        │
 │  - Signal Normalization & Ingestion                    │
 │  - Velocity Rule Engine (Redis Sliding Windows)        │
 │  - Composite Risk Scorer (45% Velocity + 55% ML)       │
@@ -72,7 +72,7 @@ Before attempting to set up and run the platform, verify that your development w
 | **Terraform CLI** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `Terraform 1.5+` (v1.17+ tested) |
 | **kubectl** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `v1.35 - v1.37` (EKS 1.37 match) |
 | **Helm** | ❌ Not Needed | ❌ Not Needed | ✅ Required | `Helm v3.12+` or `v4` |
-| **Java JDK** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `OpenJDK 21` / `Temurin 21 LTS` |
+| **Java JDK** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `OpenJDK 25` / `Temurin 25 LTS` |
 | **Apache Maven** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `Maven 3.9+` |
 | **Python & venv** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `Python 3.15.2+` |
 | **Node.js & npm** | ❌ Not Needed (in Docker) | ✅ Required | ❌ Not Needed (in CI/CD) | `Node 24 LTS` & `npm 10+` |
@@ -212,17 +212,17 @@ The provisioning IAM user or role must have policies granting permission to crea
 
 If you plan to build and run the microservices directly on your host machine without Docker:
 
-#### A. Java 21 LTS & Maven 3.9+ (For Core Risk Backend)
-- **JDK**: Eclipse Temurin 21 or OpenJDK 21 LTS
-- **Build Tool**: Apache Maven 3.9+
+#### A. Java 25 LTS & Maven 3.9+ (For Core Risk Backend)
+- **JDK**: Eclipse Temurin 25 or OpenJDK 25 LTS
+- **Build Tool**: Apache Maven 3.9+ (configured with `JAVA_HOME` pointing to Java 25)
 - **Verification**:
   ```bash
   java -version
-  # Expected: openjdk version "21.0.x"
+  # Expected: openjdk version "25.0.x"
   javac -version
-  # Expected: javac 21.0.x
+  # Expected: javac 25.0.x
   mvn -version
-  # Expected: Apache Maven 3.9.x
+  # Expected: Apache Maven 3.9.x running on Java 25.0.x
   ```
 
 #### B. Python 3.15.2+ & Pip (For ML Anomaly Scoring Service)
